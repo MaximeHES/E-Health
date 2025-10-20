@@ -1,0 +1,82 @@
+Ex2
+
+0) Load the data
+
+We read two CSV files: train (used to learn) and test (used to check how well it generalizes).
+
+1) Split features vs. label
+
+Features (X) = all input columns (age, BMI, cholesterol, etc.).
+
+Label (y) = the target we want to predict (here: Class with values like Healthy / Disease / At Risk).
+
+We make X_train, y_train from the training file, and X_test (and y_test if the test file contains labels).
+
+2) Convert text labels to numbers
+
+Algorithms work with numbers, not strings.
+
+We use a LabelEncoder to map:
+
+e.g. {"At Risk": 0, "Disease": 1, "Healthy": 2} (your mapping may differ)
+
+We transform y_train (and y_test if present) to these integers.
+
+We keep the mapping so we can convert predictions back to words later.
+
+3) Clean and scale the features (fit on train only)
+
+Imputation (SimpleImputer): if any numeric feature is missing, we fill it with the median of that column (robust to outliers).
+
+Scaling (StandardScaler): we standardize numeric columns to have ~mean 0 and std 1.
+This is important for k-NN so that features on bigger scales don’t dominate distance.
+
+We fit imputer + scaler on training data (so we don’t peek at test), then apply the same transforms to both train and test.
+
+4) Choose the model (k-NN)
+
+We use a k-Nearest Neighbors classifier:
+
+k = 7 neighbors (a solid default),
+
+distance weighting so closer neighbors count more,
+
+Euclidean distance (p=2).
+
+Intuition: to classify a patient, look at the 7 most similar patients in the training set; their labels “vote”.
+
+5) Train (fit) the model
+
+For k-NN there’s no heavy “learning”; it basically stores the processed training set.
+
+“Fit” here means: prepare internal structures so it can look up nearest neighbors quickly later.
+
+6) Evaluate on the test set
+
+We run predict(X_test) to get predicted classes (as integers).
+
+If the test has true labels:
+
+Accuracy: proportion predicted correctly.
+
+Classification report: precision/recall/F1 for each class (shows where it performs well/poorly).
+
+Confusion matrix: a table of true vs. predicted class counts (great for spotting systematic mistakes).
+
+We also save a CSV with predictions (and true labels if available), so you can inspect results easily or submit them.
+
+Why each step matters (short version)
+
+Train/Test split: honest evaluation — we don’t test on what we learned from.
+
+Label encoding: models need numbers, not text.
+
+Imputation: avoids crashing on missing values and uses a sensible filler (median).
+
+Scaling: puts all features on the same footing — crucial for distance-based models like k-NN.
+
+k-NN: simple, interpretable baseline that often works surprisingly well.
+
+Metrics: tell you not just how accurate but where it’s strong or weak.
+
+If you want, we can add a tiny confusion matrix plot or try a small MLP right after this to compare.
