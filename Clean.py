@@ -17,15 +17,14 @@ dfpt = pd.read_csv(PATH_PT)
 #--- Functions for cleaning and checking data ---
 
 #check for duplicates in each dataframe
-def check_duplicates(df, name):
-    dup_count = df.duplicated().sum()
+def check_duplicates(df, name, subset=None):
+    dup_count = df.duplicated(subset=subset).sum()
     print(f"\nDuplicate check for {name}")
     print("-" * 50)
     print(f"Number of duplicate rows: {dup_count}")
     if dup_count > 0:
         print("\nPreview of duplicate rows:")
         print(df[df.duplicated(keep=False)].head(10))
-    # delete duplicate rows
     df = df.drop_duplicates(subset=subset, keep="first")
     return df
 
