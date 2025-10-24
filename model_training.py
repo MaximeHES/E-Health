@@ -1,30 +1,21 @@
-# model_training.py
+# model_training_torch.py
 """
-ModelTraining class for the eHealth project.
+PyTorch MLP model for the eHealth project.
 - Loads Clinical / CT / PET CSVs
-- Applies cleaning via functions from clean.py
-- Merges datasets on PatientID/CenterID/Outcome
-- Prepares data (features/target, scaling, split)
-- Trains baseline models (kNN by default)
+- Cleans data using clean.py
+- Merges datasets
+- Prepares data tensors
+- Trains and evaluates a simple MLP
 """
-
-from __future__ import annotations
 
 import pandas as pd
 import numpy as np
 from typing import Tuple
 
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import (
-    accuracy_score,
-    f1_score,
-    roc_auc_score,
-    classification_report,
-)
+import torch
+import torch.nn as nn
+from torch.utils.data import TensorDataset, DataLoader, random_split
 
-# Import cleaning utilities from local module
 from Clean import (
     fix_structural_errors,
     check_duplicates,
@@ -32,116 +23,132 @@ from Clean import (
     detect_and_remove_outliers,
 )
 
+# -------------------------------
+# Define MLP model
+# -------------------------------
+class MLP(nn.Module):
+    def __init__(self, input_dim: int):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1),
+            nn.Sigmoid()  # Binary output
+        )
 
-class ModelTraining:
-    #\"\"\"Encapsulates the full ML preparation workflow for the eHealth datasets.\"\"\"
+    def forward(self, x):
+        return self.net(x)
 
+
+# -------------------------------
+# ModelTraining class using PyTorch
+# -------------------------------
+class ModelTrainingTorch:
     def __init__(self, path_clinical: str, path_ct: str, path_pt: str):
         self.path_clinical = path_clinical
         self.path_ct = path_ct
         self.path_pt = path_pt
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"Using device: {self.device}")
 
-        # Will be set later
-        self.dfcli: pd.DataFrame | None = None
-        self.dfct: pd.DataFrame | None = None
-        self.dfpt: pd.DataFrame | None = None
-        self.df_all: pd.DataFrame | None = None
-
-        self.scaler: StandardScaler | None = None
         self.model = None
 
     # -------------------------------
     # Data loading & cleaning
     # -------------------------------
     def load_and_clean_data(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        #\"\"\"Load the three CSVs and apply the cleaning pipeline. Returns the three cleaned DataFrames.\"\"\"
-        # Load
         dfcli = pd.read_csv(self.path_clinical)
         dfct = pd.read_csv(self.path_ct)
         dfpt = pd.read_csv(self.path_pt)
 
-        # Structural fixes
+        # Cleaning pipeline
         dfcli = fix_structural_errors(dfcli, "clinical")
         dfct = fix_structural_errors(dfct, "ct")
         dfpt = fix_structural_errors(dfpt, "pt")
 
-        # Duplicates (by patient)
         dfcli = check_duplicates(dfcli, "Clinical", subset=["PatientID"])
         dfct = check_duplicates(dfct, "CT", subset=["PatientID"])
         dfpt = check_duplicates(dfpt, "PT", subset=["PatientID"])
 
-        # Missing values
         dfcli = handle_missing_values(dfcli, "clinical")
         dfct = handle_missing_values(dfct, "ct")
         dfpt = handle_missing_values(dfpt, "pt")
 
-        # Outliers (clinical only)
         dfcli = detect_and_remove_outliers(dfcli, "clinical")
 
-        # Save to attributes
-        self.dfcli, self.dfct, self.dfpt = dfcli, dfct, dfpt
         return dfcli, dfct, dfpt
 
     def merge_datasets(self, dfcli: pd.DataFrame, dfct: pd.DataFrame, dfpt: pd.DataFrame) -> pd.DataFrame:
-        #\"\"\"Merge the three datasets on PatientID, CenterID and Outcome.\"\"\"
         df = dfcli.merge(dfct, on=["PatientID", "CenterID", "Outcome"])
         df = df.merge(dfpt, on=["PatientID", "CenterID", "Outcome"])
-        self.df_all = df
         return df
 
     # -------------------------------
-    # Features / target & scaling
+    # Prepare tensors
     # -------------------------------
-    def prepare_data(
-        self, df_merged: pd.DataFrame, test_size: float = 0.2, random_state: int = 42
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        #\"\"\"Split into X/y, standardize features, and create train/test sets.\"\"\"
-        X = df_merged.drop(columns=["PatientID", "CenterID", "Outcome"])
-        y = df_merged["Outcome"].astype(int)
+    def prepare_data(self, df: pd.DataFrame, test_size: float = 0.2):
+        X = df.drop(columns=["PatientID", "CenterID", "Outcome"]).values.astype(np.float32)
+        y = df["Outcome"].values.astype(np.float32).reshape(-1, 1)
 
-        self.scaler = StandardScaler()
-        X_scaled = self.scaler.fit_transform(X)
+        X_tensor = torch.tensor(X)
+        y_tensor = torch.tensor(y)
+        dataset = TensorDataset(X_tensor, y_tensor)
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            X_scaled, y, test_size=test_size, random_state=random_state, stratify=y
-        )
-        return X_train, X_test, y_train, y_test
+        n_train = int((1 - test_size) * len(dataset))
+        n_test = len(dataset) - n_train
+        train_set, test_set = random_split(dataset, [n_train, n_test])
+        return train_set, test_set
 
     # -------------------------------
-    # Baseline model: kNN
+    # Training
     # -------------------------------
-    def train_knn(self, X_train: np.ndarray, y_train: np.ndarray, n_neighbors: int = 5) -> KNeighborsClassifier:
-        #\"\"\"Train a baseline kNN classifier.\"\"\"
-        knn = KNeighborsClassifier(n_neighbors=n_neighbors)
-        knn.fit(X_train, y_train)
-        self.model = knn
-        return knn
+    def train_mlp(self, train_set, test_set, epochs=50, lr=1e-3, batch_size=32):
+        train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
+        test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False)
 
-    def evaluate(self, X_test: np.ndarray, y_test: np.ndarray) -> dict:
-        #\"\"\"Evaluate the current model on the test set and return metrics.\"\"\"
-        if self.model is None:
-            raise RuntimeError("No model trained yet. Call train_*() first.")
+        input_dim = train_set.dataset.tensors[0].shape[1]
+        model = MLP(input_dim).to(self.device)
 
-        y_pred = self.model.predict(X_test)
-        metrics = {
-            "accuracy": accuracy_score(y_test, y_pred),
-            "f1": f1_score(y_test, y_pred),
-        }
+        criterion = nn.BCELoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-        # ROC AUC (requires predict_proba or decision_function)
-        try:
-            if hasattr(self.model, "predict_proba"):
-                y_score = self.model.predict_proba(X_test)[:, 1]
-            else:
-                # Fallback to decision function if available
-                y_score = self.model.decision_function(X_test)
-            metrics["roc_auc"] = roc_auc_score(y_test, y_score)
-        except Exception:
-            metrics["roc_auc"] = float("nan")
+        for epoch in range(epochs):
+            model.train()
+            total_loss = 0.0
+            for X_batch, y_batch in train_loader:
+                X_batch, y_batch = X_batch.to(self.device), y_batch.to(self.device)
+                optimizer.zero_grad()
+                outputs = model(X_batch)
+                loss = criterion(outputs, y_batch)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
 
-        print("Evaluation metrics:", metrics)
-        print("\nClassification report:\n", classification_report(y_test, y_pred))
+            print(f"Epoch [{epoch+1}/{epochs}] - Loss: {total_loss/len(train_loader):.4f}")
 
-        return metrics
+        self.model = model
+        self.evaluate(test_loader)
+        return model
 
+    # -------------------------------
+    # Evaluation
+    # -------------------------------
+    def evaluate(self, test_loader):
+        model = self.model
+        model.eval()
 
+        y_true, y_pred = [], []
+        with torch.no_grad():
+            for X_batch, y_batch in test_loader:
+                X_batch = X_batch.to(self.device)
+                preds = model(X_batch)
+                preds = (preds.cpu() > 0.5).float()
+                y_true.extend(y_batch.cpu().numpy())
+                y_pred.extend(preds.numpy())
+
+        y_true = np.array(y_true)
+        y_pred = np.array(y_pred)
+        acc = (y_true == y_pred).mean()
+        print(f"\nTest Accuracy: {acc:.3f}")

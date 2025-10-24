@@ -123,40 +123,7 @@ def handle_missing_values(df: pd.DataFrame, source: str = "clinical") -> pd.Data
 
     return df
 
-#Detect and remove outliers
-def detect_and_remove_outliers(df: pd.DataFrame, source: str = "clinical") -> pd.DataFrame:
-    """
-    Detect & remove outliers with IQR.
-    - Clinical: apply to Age, Weight, Performance_status (skip binaries/Outcome)
-    - CT/PT: skip row removal (use robust scaling later)
-    """
-    df = df.copy()
 
-    def iqr_bounds(s):
-        q1 = s.quantile(0.25); q3 = s.quantile(0.75)
-        iqr = q3 - q1
-        return q1 - 1.5 * iqr, q3 + 1.5 * iqr
-
-    if source.lower() != "clinical":
-        print(f"Outlier removal skipped for {source.upper()} (radiomics).")
-        return df
-
-    cols = [c for c in ["Age", "Weight", "Performance_status"] if c in df.columns]
-    if not cols:
-        return df
-
-    before = len(df)
-    # build a single mask across selected columns to avoid over-filtering sequentially
-    mask = pd.Series(True, index=df.index)
-    for col in cols:
-        low, up = iqr_bounds(df[col].dropna())
-        colmask = df[col].between(low, up) | df[col].isna()  # keep NaN (handled earlier)
-        print(f"{col}: keep within [{low:.2f}, {up:.2f}]")
-        mask &= colmask
-
-    df = df[mask]
-    print(f"Removed {before - len(df)} rows as outliers (CLINICAL).")
-    return df
 
 
 #--- Appeling the functions ---
@@ -175,8 +142,7 @@ dfcli = handle_missing_values(dfcli, source="clinical")
 dfct  = handle_missing_values(dfct,  source="ct")
 dfpt  = handle_missing_values(dfpt,  source="pt")
 
-# 4) outliers (clinical only)
-dfcli = detect_and_remove_outliers(dfcli, source="clinical")
+
 
 # final sanity checks
 dfcli = check_duplicates(dfcli, "Clinical Data after cleaning", subset=["PatientID"])
