@@ -25,7 +25,7 @@ from sklearn.metrics import (
 )
 
 # Import cleaning utilities from local module
-from clean import (
+from Clean import (
     fix_structural_errors,
     check_duplicates,
     handle_missing_values,

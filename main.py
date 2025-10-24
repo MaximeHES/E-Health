@@ -1,80 +1,157 @@
-# main.py
+# model_training.py
 """
-Main script for the eHealth Machine Learning pipeline.
-- Loads and cleans data (using clean.py)
-- Trains a baseline model (using model_training.py)
-- Evaluates and saves results
+ModelTraining class for the eHealth project.
+- Loads Clinical / CT / PET CSVs
+- Applies cleaning via functions from clean.py
+- Merges datasets on PatientID/CenterID/Outcome
+- Prepares data (features/target, scaling, split)
+- Trains baseline models (kNN by default)
 """
 
-import os
 import pandas as pd
-from model_training import ModelTraining
+import numpy as np
+from typing import Tuple
 
-# -----------------------------
-# 1. Define paths
-# -----------------------------
-BASE_PATH = os.path.join(".", "Ressources")
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    roc_auc_score,
+    classification_report,
+)
 
-PATH_Clinical = os.path.join(BASE_PATH, "data_hn_clinical_test.csv")
-PATH_CT       = os.path.join(BASE_PATH, "data_hn_ct_test.csv")
-PATH_PT       = os.path.join(BASE_PATH, "data_hn_pt_test.csv")
+# Import cleaning utilities from local module
+from Clean import (
+    fix_structural_errors,
+    check_duplicates,
+    handle_missing_values,
+    detect_and_remove_outliers,
+)
 
-# -----------------------------
-# 2. Instantiate the trainer
-# -----------------------------
-trainer = ModelTraining(PATH_Clinical, PATH_CT, PATH_PT)
 
-# -----------------------------
-# 3. Load & clean all datasets
-# -----------------------------
-print("\n=== STEP 1: CLEANING DATASETS ===")
-dfcli, dfct, dfpt = trainer.load_and_clean_data()
+class ModelTraining:
+    """Encapsulates the full ML preparation workflow for the eHealth datasets."""
 
-print("\nShapes after cleaning:")
-print(f"Clinical: {dfcli.shape}")
-print(f"CT: {dfct.shape}")
-print(f"PT: {dfpt.shape}")
+    def __init__(self, path_clinical: str, path_ct: str, path_pt: str):
+        self.path_clinical = path_clinical
+        self.path_ct = path_ct
+        self.path_pt = path_pt
 
-# -----------------------------
-# 4. Merge datasets
-# -----------------------------
-print("\n=== STEP 2: MERGING DATASETS ===")
-df_all = trainer.merge_datasets(dfcli, dfct, dfpt)
-print(f"Merged dataset shape: {df_all.shape}")
+        # Will be set later
+        self.dfcli: pd.DataFrame | None = None
+        self.dfct: pd.DataFrame | None = None
+        self.dfpt: pd.DataFrame | None = None
+        self.df_all: pd.DataFrame | None = None
 
-# -----------------------------
-# 5. Prepare data (split + scale)
-# -----------------------------
-print("\n=== STEP 3: PREPARING TRAIN/TEST DATA ===")
-X_train, X_test, y_train, y_test = trainer.prepare_data(df_all)
-print(f"Train shape: {X_train.shape}, Test shape: {X_test.shape}")
+        self.scaler: StandardScaler | None = None
+        self.model = None
 
-# -----------------------------
-# 6. Train baseline model (kNN)
-# -----------------------------
-print("\n=== STEP 4: TRAINING BASELINE MODEL (kNN) ===")
-model = trainer.train_knn(X_train, y_train, n_neighbors=5)
+    # -------------------------------
+    # Data loading & cleaning
+    # -------------------------------
+    def load_and_clean_data(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """Load the three CSVs and apply the cleaning pipeline."""
+        dfcli = pd.read_csv(self.path_clinical)
+        dfct = pd.read_csv(self.path_ct)
+        dfpt = pd.read_csv(self.path_pt)
 
-# -----------------------------
-# 7. Evaluate performance
-# -----------------------------
-print("\n=== STEP 5: EVALUATION ===")
-metrics = trainer.evaluate(X_test, y_test)
+        # Structural fixes
+        dfcli = fix_structural_errors(dfcli, "clinical")
+        dfct = fix_structural_errors(dfct, "ct")
+        dfpt = fix_structural_errors(dfpt, "pt")
 
-# -----------------------------
-# 8. (Optional) Save results
-# -----------------------------
-print("\n=== STEP 6: SAVING CLEANED FILES ===")
-dfcli.to_csv(os.path.join(BASE_PATH, "data_hn_clinical_clean.csv"), index=False)
-dfct.to_csv(os.path.join(BASE_PATH, "data_hn_ct_clean.csv"), index=False)
-dfpt.to_csv(os.path.join(BASE_PATH, "data_hn_pt_clean.csv"), index=False)
+        # Duplicates (by patient)
+        dfcli = check_duplicates(dfcli, "Clinical", subset=["PatientID"])
+        dfct = check_duplicates(dfct, "CT", subset=["PatientID"])
+        dfpt = check_duplicates(dfpt, "PT", subset=["PatientID"])
 
-print("Cleaned CSV files saved in 'Ressources' folder.")
+        # Missing values
+        dfcli = handle_missing_values(dfcli, "clinical")
+        dfct = handle_missing_values(dfct, "ct")
+        dfpt = handle_missing_values(dfpt, "pt")
 
-# -----------------------------
-# 9. Summary
-# -----------------------------
-print("\n=== PIPELINE SUMMARY ===")
-print(f"Final merged dataset: {df_all.shape}")
-print(f"Model performance: {metrics}")
-print("\nPipeline completed successfully.")
+        # Outliers (clinical only)
+        dfcli = detect_and_remove_outliers(dfcli, "clinical")
+
+        # Save to attributes
+        self.dfcli, self.dfct, self.dfpt = dfcli, dfct, dfpt
+        return dfcli, dfct, dfpt
+
+    def merge_datasets(self, dfcli: pd.DataFrame, dfct: pd.DataFrame, dfpt: pd.DataFrame) -> pd.DataFrame:
+        """Merge the three datasets on PatientID, CenterID and Outcome."""
+        df = dfcli.merge(dfct, on=["PatientID", "CenterID", "Outcome"])
+        df = df.merge(dfpt, on=["PatientID", "CenterID", "Outcome"])
+        self.df_all = df
+        return df
+
+    # -------------------------------
+    # Features / target & scaling
+    # -------------------------------
+    def prepare_data(
+        self, df_merged: pd.DataFrame, test_size: float = 0.2, random_state: int = 42
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Split into X/y, standardize features, and create train/test sets."""
+        X = df_merged.drop(columns=["PatientID", "CenterID", "Outcome"])
+        y = df_merged["Outcome"].astype(int)
+
+        self.scaler = StandardScaler()
+        X_scaled = self.scaler.fit_transform(X)
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X_scaled, y, test_size=test_size, random_state=random_state, stratify=y
+        )
+        return X_train, X_test, y_train, y_test
+
+    # -------------------------------
+    # Baseline model: kNN
+    # -------------------------------
+    def train_knn(self, X_train: np.ndarray, y_train: np.ndarray, n_neighbors: int = 5) -> KNeighborsClassifier:
+        """Train a baseline kNN classifier."""
+        knn = KNeighborsClassifier(n_neighbors=n_neighbors)
+        knn.fit(X_train, y_train)
+        self.model = knn
+        return knn
+
+    def evaluate(self, X_test: np.ndarray, y_test: np.ndarray) -> dict:
+        """Evaluate the current model on the test set and return metrics."""
+        if self.model is None:
+            raise RuntimeError("No model trained yet. Call train_*() first.")
+
+        y_pred = self.model.predict(X_test)
+        metrics = {
+            "accuracy": accuracy_score(y_test, y_pred),
+            "f1": f1_score(y_test, y_pred),
+        }
+
+        # ROC AUC (requires predict_proba or decision_function)
+        try:
+            if hasattr(self.model, "predict_proba"):
+                y_score = self.model.predict_proba(X_test)[:, 1]
+            else:
+                y_score = self.model.decision_function(X_test)
+            metrics["roc_auc"] = roc_auc_score(y_test, y_score)
+        except Exception:
+            metrics["roc_auc"] = float("nan")
+
+        print("Evaluation metrics:", metrics)
+        print("\nClassification report:\n", classification_report(y_test, y_pred))
+
+        return metrics
+
+
+if __name__ == "__main__":
+    # Example paths (adjust to your project layout)
+    PATH_Clinical = r".\Ressources\data_hn_clinical_test.csv"
+    PATH_CT = r".\Ressources\data_hn_ct_test.csv"
+    PATH_PT = r".\Ressources\data_hn_pt_test.csv"
+
+    trainer = ModelTraining(PATH_Clinical, PATH_CT, PATH_PT)
+
+    dfcli, dfct, dfpt = trainer.load_and_clean_data()
+    df_all = trainer.merge_datasets(dfcli, dfct, dfpt)
+    X_train, X_test, y_train, y_test = trainer.prepare_data(df_all)
+
+    trainer.train_knn(X_train, y_train, n_neighbors=5)
+    trainer.evaluate(X_test, y_test)
