@@ -5,11 +5,11 @@ import seaborn as sns  # optional but makes plots prettier
 
 # Load the dataset
 
-PATH_Clinical = r"C:\Users\Maxime\PycharmProjects\EHealthProject\Ressources\data_hn_clinical_test.csv"
-PATH_CT = r"C:\Users\Maxime\PycharmProjects\EHealthProject\Ressources\data_hn_ct_test.csv"
-PATH_PT = r"C:\Users\Maxime\PycharmProjects\EHealthProject\Ressources\data_hn_pt_test.csv"
+PATH_Clinical = r".\Ressources\data_hn_clinical_test.csv"
+PATH_CT = r".\Ressources\data_hn_ct_test.csv"
+PATH_PT = r".\Ressources\data_hn_pt_test.csv"
 
-df = pd.read_csv(PATH_Clinical)
+#df = pd.read_csv(PATH_Clinical)
 # df = pd.read_csv(PATH_CT)
 # df = pd.read_csv(PATH_PT)
 
