@@ -143,7 +143,6 @@ dfct  = handle_missing_values(dfct,  source="ct")
 dfpt  = handle_missing_values(dfpt,  source="pt")
 
 
-
 # final sanity checks
 dfcli = check_duplicates(dfcli, "Clinical Data after cleaning", subset=["PatientID"])
 dfct  = check_duplicates(dfct,  "CT Data after cleaning",       subset=["PatientID"])

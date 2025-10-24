@@ -20,7 +20,6 @@ from Clean import (
     fix_structural_errors,
     check_duplicates,
     handle_missing_values,
-    detect_and_remove_outliers,
 )
 
 # -------------------------------
@@ -75,8 +74,6 @@ class ModelTrainingTorch:
         dfcli = handle_missing_values(dfcli, "clinical")
         dfct = handle_missing_values(dfct, "ct")
         dfpt = handle_missing_values(dfpt, "pt")
-
-        dfcli = detect_and_remove_outliers(dfcli, "clinical")
 
         return dfcli, dfct, dfpt
 
@@ -152,3 +149,5 @@ class ModelTrainingTorch:
         y_pred = np.array(y_pred)
         acc = (y_true == y_pred).mean()
         print(f"\nTest Accuracy: {acc:.3f}")
+
+
