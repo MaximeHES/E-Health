@@ -166,6 +166,38 @@ def evaluate_model(model, loader, device):
     print({k: (round(v, 4) if isinstance(v, float) else v) for k, v in metrics.items()})
     return metrics
 
+# -------------------------------
+# 5bis. Data comparison utilities
+# -------------------------------
+def compare_before_after(before: pd.DataFrame, after: pd.DataFrame, name: str):
+    """Display differences before and after cleaning."""
+    print(f"\n🔍 Comparison for {name}")
+    print("-" * 60)
+    print(f"Shape before: {before.shape} | after: {after.shape}")
+
+    # Missing values
+    before_missing = before.isna().sum().sum()
+    after_missing = after.isna().sum().sum()
+    print(f"Missing values: before = {before_missing:,} | after = {after_missing:,}")
+
+    # Column overview
+    print("\nColumn summary (first 5):")
+    summary = pd.DataFrame({
+        "before_dtype": before.dtypes,
+        "after_dtype": after.dtypes,
+        "before_nan": before.isna().sum(),
+        "after_nan": after.isna().sum(),
+        "before_unique": before.nunique(),
+        "after_unique": after.nunique()
+    }).head(5)
+    print(summary)
+
+    # Changed columns
+    changed_cols = [c for c in after.columns if c not in before.columns]
+    if changed_cols:
+        print("\n🆕 New columns after cleaning:", changed_cols[:5], "..." if len(changed_cols) > 5 else "")
+    else:
+        print("\nNo new columns introduced.")
 
 # -------------------------------
 # 5. Full Pipeline
@@ -186,11 +218,21 @@ def main():
     dfct  = pd.read_csv(PATH_CT)
     dfpt  = pd.read_csv(PATH_PT)
 
+        # --- Load raw data ---
+    dfcli_raw = pd.read_csv(PATH_CLI)
+    dfct_raw  = pd.read_csv(PATH_CT)
+    dfpt_raw  = pd.read_csv(PATH_PT)
+
     # --- Cleaning ---
     print("🧹 Cleaning data...")
     dfcli = handle_missing_values(fix_structural_errors(dfcli, "clinical"), "clinical")
     dfct  = handle_missing_values(fix_structural_errors(dfct,  "ct"),       "ct")
     dfpt  = handle_missing_values(fix_structural_errors(dfpt,  "pt"),       "pt")
+
+    # --- Compare before/after ---
+    compare_before_after(dfcli_raw, dfcli, "Clinical Data")
+    compare_before_after(dfct_raw, dfct, "CT Data")
+    compare_before_after(dfpt_raw, dfpt, "PT Data")
 
     # --- Merge datasets ---
     print("🔗 Merging datasets...")
