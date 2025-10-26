@@ -1,4 +1,4 @@
-import Clean
+import Clean as Clean
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
