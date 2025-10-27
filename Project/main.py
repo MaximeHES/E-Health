@@ -23,7 +23,7 @@ from sklearn.metrics import (
 )
 
 # Import cleaning utilities from local module
-from Clean import (
+from Project.Clean import (
     fix_structural_errors,
     check_duplicates,
     handle_missing_values,
@@ -143,9 +143,9 @@ class ModelTraining:
 
 if __name__ == "__main__":
     # Example paths (adjust to your project layout)
-    PATH_Clinical = r".\Ressources\data_hn_clinical_test.csv"
-    PATH_CT = r".\Ressources\data_hn_ct_test.csv"
-    PATH_PT = r".\Ressources\data_hn_pt_test.csv"
+    PATH_Clinical = r"Ressources/data_hn_clinical_test.csv"
+    PATH_CT = r"Ressources/data_hn_ct_test.csv"
+    PATH_PT = r"Ressources/data_hn_pt_test.csv"
 
     trainer = ModelTraining(PATH_Clinical, PATH_CT, PATH_PT)
 

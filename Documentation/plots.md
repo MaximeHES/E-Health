@@ -12,7 +12,7 @@ The goal is to evaluate how weighting impacts the model’s convergence and accu
 ---
 
 ## 2. Client Data Distribution
-![Client Data Distribution](../Ressources/plots/client_distribution.png)
+![Client Data Distribution](../Project/Ressources/plots/client_distribution.png)
 
 ### Interpretation:
 - Each bar represents the number of patient samples per center (`CenterID`).
@@ -24,10 +24,10 @@ The goal is to evaluate how weighting impacts the model’s convergence and accu
 ## 3. Accuracy Over Rounds
 
 ### a. Unweighted FedAvg
-![Accuracy - Unweighted](../Ressources/plots/acc_unweighted.png)
+![Accuracy - Unweighted](../Project/Ressources/plots/acc_unweighted.png)
 
 ### b. Weighted vs Unweighted Comparison
-![Accuracy Comparison](../Ressources/plots/acc_weighted_vs_unweighted.png)
+![Accuracy Comparison](../Project/Ressources/plots/acc_weighted_vs_unweighted.png)
 
 ### Interpretation:
 - The **unweighted** version shows a steady improvement up to around **round 7–8**.
@@ -39,10 +39,10 @@ The goal is to evaluate how weighting impacts the model’s convergence and accu
 ## 4. Loss Evolution
 
 ### a. Unweighted FedAvg
-![Loss - Unweighted](../Ressources/plots/loss_unweighted.png)
+![Loss - Unweighted](../Project/Ressources/plots/loss_unweighted.png)
 
 ### b. Weighted vs Unweighted Comparison
-![Loss Comparison](../Ressources/plots/loss_weighted_vs_unweighted.png)
+![Loss Comparison](../Project/Ressources/plots/loss_weighted_vs_unweighted.png)
 
 ### Interpretation:
 - Both models show a consistent **decrease in loss** until early stopping.

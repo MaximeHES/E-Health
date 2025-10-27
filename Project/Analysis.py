@@ -2,15 +2,14 @@ import Clean
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
 
 
-PATH_Clinical = r"../Ressources/data_hn_clinical_test.csv"
-PATH_CT = r"../Ressources/data_hn_ct_test.csv"
-PATH_PT = r"../Ressources/data_hn_pt_test.csv"
+PATH_Clinical = r"Ressources/data_hn_clinical_test.csv"
+PATH_CT = r"Ressources/data_hn_ct_test.csv"
+PATH_PT = r"Ressources/data_hn_pt_test.csv"
 
 dfcli = pd.read_csv(PATH_Clinical)
 dfct = pd.read_csv(PATH_CT)

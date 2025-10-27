@@ -103,7 +103,7 @@ Returns a `history` dictionary:
 ### 🧩 Example Workflow
 
 ```python
-from fl_train import run_federated
+from Project.fl_train import run_federated
 
 RES_PATH = "./Ressources"
 

@@ -16,7 +16,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader, random_split
 
-from Clean import (
+from Project.Clean import (
     fix_structural_errors,
     check_duplicates,
     handle_missing_values,
